@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+__list_installed_plugins() {
+    asdf plugin-list 2>/dev/null | sort 
+}
+
+__list_all_plugins() {
+    join -t ' ' -a 1 \
+        <(asdf plugin-list-all 2>/dev/null | awk '{print $1}' | sort) \
+        <(__list_installed_plugins | awk '{print $1 " (installed)"}' | sort) |\
+        awk '
+            BEGIN {
+                green="\033[32m";
+                red="\033[31m";
+                reset="\033[0m";
+            }
+            /(installed)/{
+                print green $0 reset;
+                next;
+            }
+            {
+                print red $0 reset
+            }'
+}
+
+__select_available_plugins() {
+    plugins=`__list_all_plugins`
+    cat <(echo "$plugins" | grep "installed") \
+        <(echo "$plugins" | grep -v "installed") | \
+    fzf -m --tac --ansi | awk '{print $1}'
+}
+
+__select_installed_plugins() {
+    plugins=`__list_all_plugins`
+    cat <(echo "$plugins" | grep -v "installed") \
+        <(echo "$plugins" | grep "installed") | \
+    fzf -m --tac --ansi | awk '{print $1}'
+}
+
+__list_all_versions() {
+    join -t ' ' -a 1 \
+        <(asdf list-all $1 2>/dev/null | awk '{print $1}' | sort) \
+        <(asdf list $1 2>/dev/null | awk '{print $1 " (installed)"}' | sort) | \
+        sort -V | \
+        awk '
+            BEGIN {
+                green="\033[32m";
+                red="\033[31m";
+                reset="\033[0m";
+            }
+            /(installed)/{
+                print green $0 reset;
+                next;
+            }
+            {
+                print red $0 reset
+            }'
+}
+
+__list_installed_versions() {
+    __list_all_versions $1 | grep 'installed'
+}
+
+__select_installed_version() {
+    __list_installed_versions $1 | \
+    fzf --tac --ansi --no-sort | \
+    awk '{print $1}'
+
+}
+
+__select_available_versions() {
+    versions=`__list_all_versions $1`
+    cat <(echo "$versions" | grep "installed") \
+        <(echo "$versions" | grep -v "installed") |\
+    fzf -m --tac --ansi --no-sort | awk '{print $1}'
+}
+
+__select_installed_versions() {
+    versions=`__list_all_versions $1`
+    cat <(echo "$versions" | grep -v "installed") \
+        <(echo "$versions" | grep "installed") |\
+    fzf -m --tac --ansi --no-sort | awk '{print $1}'
+}
+
+__get_current_version() {
+    set +e
+    asdf current terraform | awk '{print $1}'
+    set -e
+}
+
+_install() {
+    plugin=`__list_installed_plugins | fzf`
+    __select_available_versions $plugin | xargs -t -r -n 1 asdf install $plugin
+}
+
+_uninstall() {
+    plugin=`__list_installed_plugins | fzf`
+    __select_installed_versions $plugin | xargs -t -r -n 1 asdf uninstall $plugin
+}
+
+_plugin-add() {
+    __select_available_plugins | xargs -t -r -n 1 asdf plugin-add
+}
+
+_plugin-remove() {
+    __select_installed_plugins | xargs -t -r -n 1 asdf plugin-remove
+}
+
+_list() {
+    plugin=`__list_installed_plugins | fzf`
+    __list_all_versions $plugin | grep installed
+}
+
+_list-all() {
+    plugin=`__list_installed_plugins | fzf`
+    __list_all_versions $plugin
+}
+
+_global() {
+    plugin=`__list_installed_plugins | fzf`
+    __select_installed_version $plugin | xargs -t -r -n 1 asdf global $plugin
+}
+
+_local() {
+    plugin=`__list_installed_plugins | fzf`
+    __select_installed_version $plugin | xargs -t -r -n 1 asdf local $plugin
+}
+
+_current() {
+    asdf current 2>&1 | awk '{print $1,$2}' | column -t | fzf
+}
+
+
+main() {
+    operation=$(cat <<-EOF | fzf
+install
+uninstall
+plugin-add
+plugin-remove
+list
+list-all
+local
+global
+current
+EOF
+)
+    _$operation
+}
+
+main
