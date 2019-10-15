@@ -15,6 +15,6 @@ chmod +x ~/bin/asdfzf
 
 ## Usage
 
-The asdf hides asdf commands behind an fzf interactive selection interface.
+The asdfzf command hides asdf commands behind an fzf interactive selection interface.
 
 There are no arguments. Just run `asdfzf` and that's it!
